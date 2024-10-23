@@ -73,7 +73,6 @@ class _AquariumHomePageState extends State<AquariumHomePage> {
         selectedColor = Color(settings[0]['color']);
         int fishCount = settings[0]['fish_count'];
 
-        // Repopulate the fishList based on saved fish count, speed, and color
         fishList = List.generate(fishCount, (_) => Fish(color: selectedColor, speed: selectedSpeed));
       });
       print('Settings restored');
@@ -106,7 +105,7 @@ class _AquariumHomePageState extends State<AquariumHomePage> {
               children: fishList.map((fish) => fish).toList(),
             ),
           ),
-          SizedBox(height: 20), // Space between aquarium and controls
+          SizedBox(height: 20), 
           Text(
             "Fish Speed: ${selectedSpeed.toStringAsFixed(1)}x",
             style: TextStyle(fontSize: 18),
@@ -186,18 +185,15 @@ class _FishState extends State<Fish> with SingleTickerProviderStateMixin {
         dx += dxSpeed * widget.speed;
         dy += dySpeed * widget.speed;
 
-        // Randomize the movement slightly for natural effect
         if (random.nextDouble() > 0.98) {
           dxSpeed = randomDirection(dxSpeed);
           dySpeed = randomDirection(dySpeed);
         }
 
-        // Reverse direction when hitting horizontal boundaries (width)
         if (dx >= 280 || dx <= 0) {
           dxSpeed = -dxSpeed;
         }
 
-        // Reverse direction when hitting vertical boundaries (height)
         if (dy >= 280 || dy <= 0) {
           dySpeed = -dySpeed;
         }
@@ -205,7 +201,7 @@ class _FishState extends State<Fish> with SingleTickerProviderStateMixin {
     });
   }
 
-  // Randomize the movement to introduce variation
+ 
   double randomDirection(double currentSpeed) {
     return random.nextBool() ? currentSpeed : -currentSpeed;
   }
