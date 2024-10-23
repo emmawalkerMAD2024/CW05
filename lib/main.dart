@@ -1,12 +1,13 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
 
 void main() {
-  runApp(AquariumApp());
+  runApp(MyApp());
 }
 
-class AquariumApp extends StatelessWidget {
+class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -28,57 +29,59 @@ class _AquariumHomePageState extends State<AquariumHomePage> {
   List<Fish> fishList = [];
   Color selectedColor = Colors.blue;
   double selectedSpeed = 1.0;
+  late Database database;
 
   @override
   void initState() {
     super.initState();
-    _loadSettings(); // Load settings from local storage
+    _initializeDatabase().then((_) => _loadSettingsFromDatabase());
   }
 
-  // Initialize SQLite database
-  Future<Database> _initDatabase() async {
-    return openDatabase(
+  Future<void> _initializeDatabase() async {
+    database = await openDatabase(
       join(await getDatabasesPath(), 'aquarium.db'),
       onCreate: (db, version) {
         return db.execute(
-          'CREATE TABLE settings(id INTEGER PRIMARY KEY, fishCount INTEGER, speed REAL, color TEXT)',
+          'CREATE TABLE aquarium_settings(id INTEGER PRIMARY KEY, fish_count INTEGER, speed REAL, color INTEGER)',
         );
       },
       version: 1,
     );
   }
 
-  // Save settings to SQLite
-  Future<void> _saveSettings() async {
-    final db = await _initDatabase();
-    await db.insert(
-      'settings',
+  Future<void> _saveSettingsToDatabase() async {
+    await database.insert(
+      'aquarium_settings',
       {
-        'fishCount': fishList.length,
+        'id': 1,
+        'fish_count': fishList.length,
         'speed': selectedSpeed,
-        'color': selectedColor.value.toString(),
+        'color': selectedColor.value,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    print('Settings saved');
   }
 
-  // Load settings from SQLite
-  Future<void> _loadSettings() async {
-    final db = await _initDatabase();
-    final List<Map<String, dynamic>> settings = await db.query('settings');
+  Future<void> _loadSettingsFromDatabase() async {
+    final List<Map<String, dynamic>> settings =
+        await database.query('aquarium_settings', where: 'id = 1');
+
     if (settings.isNotEmpty) {
-      final Map<String, dynamic> savedSettings = settings.first;
       setState(() {
-        selectedSpeed = savedSettings['speed'];
-        selectedColor = Color(int.parse(savedSettings['color']));
-        for (int i = 0; i < savedSettings['fishCount']; i++) {
-          fishList.add(Fish(color: selectedColor, speed: selectedSpeed));
-        }
+        selectedSpeed = settings[0]['speed'];
+        selectedColor = Color(settings[0]['color']);
+        int fishCount = settings[0]['fish_count'];
+
+        // Repopulate the fishList based on saved fish count, speed, and color
+        fishList = List.generate(fishCount, (_) => Fish(color: selectedColor, speed: selectedSpeed));
       });
+      print('Settings restored');
+    } else {
+      print('No settings found to restore');
     }
   }
 
-  // Add a new fish to the aquarium
   void _addFish() {
     if (fishList.length < 10) {
       setState(() {
@@ -103,11 +106,17 @@ class _AquariumHomePageState extends State<AquariumHomePage> {
               children: fishList.map((fish) => fish).toList(),
             ),
           ),
+          SizedBox(height: 20), // Space between aquarium and controls
+          Text(
+            "Fish Speed: ${selectedSpeed.toStringAsFixed(1)}x",
+            style: TextStyle(fontSize: 18),
+          ),
           Slider(
             value: selectedSpeed,
             min: 0.5,
             max: 5.0,
-            label: selectedSpeed.toString(),
+            divisions: 9,
+            label: "${selectedSpeed.toStringAsFixed(1)}x",
             onChanged: (double value) {
               setState(() {
                 selectedSpeed = value;
@@ -133,8 +142,12 @@ class _AquariumHomePageState extends State<AquariumHomePage> {
             child: Text("Add Fish"),
           ),
           ElevatedButton(
-            onPressed: _saveSettings,
+            onPressed: _saveSettingsToDatabase,
             child: Text("Save Settings"),
+          ),
+          ElevatedButton(
+            onPressed: _loadSettingsFromDatabase,
+            child: Text("Restore Settings"),
           ),
         ],
       ),
@@ -143,8 +156,8 @@ class _AquariumHomePageState extends State<AquariumHomePage> {
 }
 
 class Fish extends StatefulWidget {
-   Color color;
-   double speed;
+  final Color color;
+  final double speed;
 
   Fish({required this.color, required this.speed});
 
@@ -158,6 +171,7 @@ class _FishState extends State<Fish> with SingleTickerProviderStateMixin {
   double dy = 0;
   double dxSpeed = 1.0;
   double dySpeed = 1.0;
+  Random random = Random();
 
   @override
   void initState() {
@@ -166,23 +180,34 @@ class _FishState extends State<Fish> with SingleTickerProviderStateMixin {
       duration: Duration(seconds: (6 ~/ widget.speed)),
       vsync: this,
     )..repeat(reverse: false);
-    
+
     _controller.addListener(() {
       setState(() {
         dx += dxSpeed * widget.speed;
         dy += dySpeed * widget.speed;
 
+        // Randomize the movement slightly for natural effect
+        if (random.nextDouble() > 0.98) {
+          dxSpeed = randomDirection(dxSpeed);
+          dySpeed = randomDirection(dySpeed);
+        }
+
         // Reverse direction when hitting horizontal boundaries (width)
         if (dx >= 280 || dx <= 0) {
           dxSpeed = -dxSpeed;
         }
-        
+
         // Reverse direction when hitting vertical boundaries (height)
         if (dy >= 280 || dy <= 0) {
           dySpeed = -dySpeed;
         }
       });
     });
+  }
+
+  // Randomize the movement to introduce variation
+  double randomDirection(double currentSpeed) {
+    return random.nextBool() ? currentSpeed : -currentSpeed;
   }
 
   @override
@@ -207,4 +232,3 @@ class _FishState extends State<Fish> with SingleTickerProviderStateMixin {
     super.dispose();
   }
 }
-
